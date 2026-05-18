@@ -1,0 +1,26 @@
+# OpenTofu / Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
+
+# Plan binaries (we do publish module outputs but never raw plans)
+*.tfplan
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Local scratch
+scratch/
+*.local.tf

@@ -1,0 +1,360 @@
+##################################################################################
+#
+#   Conformance Pack:
+#     Operational Best Practices for HIPAA Security
+#
+#   Source: https://docs.aws.amazon.com/config/latest/developerguide/operational-best-practices-for-hipaa_security.html
+#   License: MIT-0 (AWS sample, redistributed unmodified for fidelity)
+#
+#   This pack assesses HIPAA Security Rule technical-safeguard alignment using
+#   AWS Config managed rules. It is REPRESENTATIVE — operators MUST review
+#   their own HIPAA risk analysis before relying on any single control.
+#
+##################################################################################
+
+Resources:
+  CloudTrailEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloud-trail-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_ENABLED
+      MaximumExecutionFrequency: One_Hour
+
+  CloudTrailEncryptionEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloud-trail-encryption-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_ENCRYPTION_ENABLED
+
+  CloudTrailLogFileValidationEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cloud-trail-log-file-validation-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: CLOUD_TRAIL_LOG_FILE_VALIDATION_ENABLED
+
+  IamPasswordPolicy:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: iam-password-policy
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_PASSWORD_POLICY
+
+  IamRootAccessKeyCheck:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: iam-root-access-key-check
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_ROOT_ACCESS_KEY_CHECK
+
+  IamUserMfaEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: iam-user-mfa-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_USER_MFA_ENABLED
+
+  MfaEnabledForIamConsoleAccess:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: mfa-enabled-for-iam-console-access
+      Source:
+        Owner: AWS
+        SourceIdentifier: MFA_ENABLED_FOR_IAM_CONSOLE_ACCESS
+
+  RootAccountMfaEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: root-account-mfa-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: ROOT_ACCOUNT_MFA_ENABLED
+
+  AccessKeysRotated:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: access-keys-rotated
+      Source:
+        Owner: AWS
+        SourceIdentifier: ACCESS_KEYS_ROTATED
+      InputParameters:
+        maxAccessKeyAge: "90"
+
+  S3BucketPublicReadProhibited:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: s3-bucket-public-read-prohibited
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_READ_PROHIBITED
+
+  S3BucketPublicWriteProhibited:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: s3-bucket-public-write-prohibited
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_PUBLIC_WRITE_PROHIBITED
+
+  S3BucketSslRequestsOnly:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: s3-bucket-ssl-requests-only
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_SSL_REQUESTS_ONLY
+
+  S3BucketServerSideEncryptionEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: s3-bucket-server-side-encryption-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+
+  S3BucketVersioningEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: s3-bucket-versioning-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_VERSIONING_ENABLED
+
+  S3BucketLoggingEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: s3-bucket-logging-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: S3_BUCKET_LOGGING_ENABLED
+
+  RdsStorageEncrypted:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: rds-storage-encrypted
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_STORAGE_ENCRYPTED
+
+  RdsInstancePublicAccessCheck:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: rds-instance-public-access-check
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_INSTANCE_PUBLIC_ACCESS_CHECK
+
+  RdsSnapshotsPublicProhibited:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: rds-snapshots-public-prohibited
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_SNAPSHOTS_PUBLIC_PROHIBITED
+
+  RdsLoggingEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: rds-logging-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_LOGGING_ENABLED
+
+  RdsInBackupPlan:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: rds-in-backup-plan
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_IN_BACKUP_PLAN
+
+  RdsMultiAzSupport:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: rds-multi-az-support
+      Source:
+        Owner: AWS
+        SourceIdentifier: RDS_MULTI_AZ_SUPPORT
+
+  EbsEncryptedVolumes:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: encrypted-volumes
+      Source:
+        Owner: AWS
+        SourceIdentifier: ENCRYPTED_VOLUMES
+
+  EbsInBackupPlan:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: ebs-in-backup-plan
+      Source:
+        Owner: AWS
+        SourceIdentifier: EBS_IN_BACKUP_PLAN
+
+  EbsSnapshotPublicRestorableCheck:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: ebs-snapshot-public-restorable-check
+      Source:
+        Owner: AWS
+        SourceIdentifier: EBS_SNAPSHOT_PUBLIC_RESTORABLE_CHECK
+
+  VpcSgOpenOnlyToAuthorizedPorts:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: vpc-sg-open-only-to-authorized-ports
+      Source:
+        Owner: AWS
+        SourceIdentifier: VPC_SG_OPEN_ONLY_TO_AUTHORIZED_PORTS
+
+  RestrictedSshIncomingTraffic:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: restricted-ssh
+      Source:
+        Owner: AWS
+        SourceIdentifier: INCOMING_SSH_DISABLED
+
+  RestrictedCommonPorts:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: restricted-common-ports
+      Source:
+        Owner: AWS
+        SourceIdentifier: RESTRICTED_INCOMING_TRAFFIC
+
+  VpcDefaultSecurityGroupClosed:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: vpc-default-security-group-closed
+      Source:
+        Owner: AWS
+        SourceIdentifier: VPC_DEFAULT_SECURITY_GROUP_CLOSED
+
+  VpcFlowLogsEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: vpc-flow-logs-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: VPC_FLOW_LOGS_ENABLED
+
+  ElbAcmCertificateRequired:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: elb-acm-certificate-required
+      Source:
+        Owner: AWS
+        SourceIdentifier: ELB_ACM_CERTIFICATE_REQUIRED
+
+  ElbTlsHttpsListenersOnly:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: elb-tls-https-listeners-only
+      Source:
+        Owner: AWS
+        SourceIdentifier: ELB_TLS_HTTPS_LISTENERS_ONLY
+
+  AcmCertificateExpirationCheck:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: acm-certificate-expiration-check
+      Source:
+        Owner: AWS
+        SourceIdentifier: ACM_CERTIFICATE_EXPIRATION_CHECK
+      InputParameters:
+        daysToExpiration: "30"
+
+  KmsCmkNotScheduledForDeletion:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: kms-cmk-not-scheduled-for-deletion
+      Source:
+        Owner: AWS
+        SourceIdentifier: KMS_CMK_NOT_SCHEDULED_FOR_DELETION
+
+  CmkBackingKeyRotationEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: cmk-backing-key-rotation-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: CMK_BACKING_KEY_ROTATION_ENABLED
+
+  SecretsManagerRotationEnabledCheck:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: secretsmanager-rotation-enabled-check
+      Source:
+        Owner: AWS
+        SourceIdentifier: SECRETSMANAGER_ROTATION_ENABLED_CHECK
+
+  GuardDutyEnabledCentralized:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: guardduty-enabled-centralized
+      Source:
+        Owner: AWS
+        SourceIdentifier: GUARDDUTY_ENABLED_CENTRALIZED
+      MaximumExecutionFrequency: One_Hour
+
+  GuardDutyNonArchivedFindings:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: guardduty-non-archived-findings
+      Source:
+        Owner: AWS
+        SourceIdentifier: GUARDDUTY_NON_ARCHIVED_FINDINGS
+      InputParameters:
+        daysHighSev: "1"
+        daysMediumSev: "7"
+        daysLowSev: "30"
+
+  EmrKerberosEnabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: emr-kerberos-enabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: EMR_KERBEROS_ENABLED
+
+  DmsReplicationNotPublic:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: dms-replication-not-public
+      Source:
+        Owner: AWS
+        SourceIdentifier: DMS_REPLICATION_NOT_PUBLIC
+
+  IncomingSshDisabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: ec2-security-group-attached-to-eni
+      Source:
+        Owner: AWS
+        SourceIdentifier: EC2_SECURITY_GROUP_ATTACHED_TO_ENI
+
+  IamPolicyNoStatementsWithAdminAccess:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: iam-policy-no-statements-with-admin-access
+      Source:
+        Owner: AWS
+        SourceIdentifier: IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS
+
+  AutoscalingLaunchConfigPublicIpDisabled:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      ConfigRuleName: autoscaling-launch-config-public-ip-disabled
+      Source:
+        Owner: AWS
+        SourceIdentifier: AUTOSCALING_LAUNCH_CONFIG_PUBLIC_IP_DISABLED

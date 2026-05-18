@@ -1,0 +1,83 @@
+name: module-validate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  format-and-validate:
+    name: format + validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.9.0
+
+      - name: Install tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Run scripts/validate_all.sh
+        run: |
+          chmod +x scripts/validate_all.sh
+          ./scripts/validate_all.sh
+
+      - name: Lint each module with tflint
+        run: |
+          for dir in modules/*/; do
+            [[ -d "${dir}" ]] || continue
+            echo "── tflint ${dir}"
+            (cd "${dir}" && tflint --init >/dev/null 2>&1 && tflint --no-color)
+          done
+
+      - name: Refuse sensitive literals
+        run: |
+          chmod +x scripts/lint_no_literals.sh
+          ./scripts/lint_no_literals.sh
+
+  schema-variable-diff:
+    name: variables ↔ console.schema.json diff
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Diff variable surface against schema
+        run: |
+          # For every application root, compare the set of `variable "..."`
+          # blocks in variables.tf against the set of `properties.*` keys
+          # in console.schema.json. The two sets must be exactly equal.
+          missing=0
+          for app_dir in applications/*/; do
+            [[ -d "${app_dir}" ]] || continue
+            vars_file="${app_dir}variables.tf"
+            schema_file="${app_dir}console.schema.json"
+            [[ -f "${vars_file}" ]] || continue
+            [[ -f "${schema_file}" ]] || { echo "${app_dir}: console.schema.json missing"; missing=1; continue; }
+
+            tf_vars="$(grep -E '^variable "' "${vars_file}" | sed -E 's/variable "([^"]+)".*/\1/' | sort -u)"
+            schema_vars="$(python3 -c '
+import json, sys
+with open(sys.argv[1]) as fh: d = json.load(fh)
+for k in sorted((d.get("properties") or {}).keys()): print(k)
+' "${schema_file}" | sort -u)"
+
+            tf_only="$(comm -23 <(echo "${tf_vars}") <(echo "${schema_vars}"))"
+            schema_only="$(comm -13 <(echo "${tf_vars}") <(echo "${schema_vars}"))"
+            if [[ -n "${tf_only}" ]] || [[ -n "${schema_only}" ]]; then
+              echo "${app_dir}: variables.tf ↔ console.schema.json mismatch"
+              [[ -n "${tf_only}" ]] && echo "  in variables.tf only: ${tf_only}"
+              [[ -n "${schema_only}" ]] && echo "  in schema only: ${schema_only}"
+              missing=1
+            fi
+          done
+          exit "${missing}"

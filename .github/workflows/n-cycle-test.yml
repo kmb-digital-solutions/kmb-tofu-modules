@@ -1,0 +1,51 @@
+name: n-cycle-test
+
+on:
+  schedule:
+    # Nightly at 02:00 UTC. The sandbox account absorbs the cost; the
+    # signal is "did any module regress its destroy/apply contract."
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Application root to test (e.g. traincover, spire)"
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  n-cycle:
+    name: ${{ matrix.app }} N-cycle
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.app)) || fromJSON('["spire", "traincover"]') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.9.0
+
+      - name: Assume sandbox role via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.SANDBOX_AWS_ACCOUNT_ID }}:role/kmb-tofu-nightly-runner
+          aws-region: us-east-1
+          role-session-name: ncycle-${{ matrix.app }}-${{ github.run_id }}
+
+      - name: Run N-cycle test
+        env:
+          SANDBOX_AWS_ACCOUNT_ID: ${{ secrets.SANDBOX_AWS_ACCOUNT_ID }}
+          AWS_PROFILE: default
+        run: |
+          chmod +x scripts/n_cycle_test.sh
+          ./scripts/n_cycle_test.sh "${{ matrix.app }}" sandbox-co
