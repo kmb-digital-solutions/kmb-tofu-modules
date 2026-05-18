@@ -1,20 +1,44 @@
 # Application Onboarding Guide
 
-> How to add a new application root to this repository so the Singular
-> Console can deploy it per-customer.
+> How to author an application root module that consumes the shared
+> modules in this repository, so the Singular Console can deploy it
+> per-customer.
 
 ## Concept
 
-An **application root module** under `applications/<app-slug>/` is a
-complete deployable unit for one application (Spire, Traincover, etc.). It
-composes shared modules from `modules/`, exposes a `console.schema.json`
-that drives the Singular Console UI, and configures an S3 backend for
+An **application root module** is a complete deployable unit for one
+application (Spire, Traincover, etc.). It composes shared modules from
+this repo via remote git sources, exposes a `console.schema.json` that
+drives the Singular Console UI, and configures an S3 backend for
 per-customer state.
+
+**Application roots live in each application's own (private) repository,
+NOT in this public modules repo.** This repository holds only the
+shared, customer-agnostic modules. Application roots reference modules
+here via:
+
+```hcl
+source = "git::https://github.com/kmb-digital-solutions/kmb-tofu-modules.git//modules/<name>?ref=<module>/vX.Y.Z"
+```
+
+Convention for the path within an application's own repo:
+
+| Application | Root path |
+|-------------|-----------|
+| Spire | `kmb-SOAP-be/infrastructure-modular/` |
+| Traincover | `infrastructure-modular/` |
+| (future apps) | `infrastructure-modular/` at the repo root or alongside an existing `infrastructure/` directory during migration |
+
+The `-modular` suffix is a transitional naming convention used while a
+legacy `infrastructure/` directory exists in the same repo. After the
+live-migration step (Singular Console requirements doc, I4.3/I4.4), the
+legacy directory is archived and `infrastructure-modular` becomes
+`infrastructure`.
 
 ## Files every application root must have
 
 ```
-applications/<app-slug>/
+<product-repo>/infrastructure-modular/
 ├── main.tf              # Compose modules; declare any app-specific resources.
 ├── variables.tf         # Input surface — must match console.schema.json.
 ├── outputs.tf           # ARNs, URLs, etc. that the console exposes.
@@ -91,10 +115,19 @@ diffs the two and fails on mismatch.
 
 ## Onboarding sequence
 
-1. **Create the directory** `applications/<app-slug>/`.
+1. **Create the directory** at `<product-repo>/infrastructure-modular/`.
+   Add a sibling `.gitignore` ignoring `.terraform/`, `*.tfstate`,
+   `*.tfvars`, `*.tfplan`, `.terraform.lock.hcl`.
 
-2. **Compose from shared modules** in `main.tf`. Do not redeclare what a
-   shared module already does — that's why the shared modules exist.
+2. **Compose from shared modules** in `main.tf` via remote git sources:
+
+   ```hcl
+   source = "git::https://github.com/kmb-digital-solutions/kmb-tofu-modules.git//modules/<name>?ref=<module>/vX.Y.Z"
+   ```
+
+   Do not redeclare what a shared module already does — that's why the
+   shared modules exist. Modules pin to specific semver tags; never
+   reference `?ref=main` from a production deployment.
 
 3. **Wire `destroy_protection`** consistently. Every shared module accepts
    it; pass `var.destroy_protection` through from the application root's
@@ -115,26 +148,35 @@ diffs the two and fails on mismatch.
 
 6. **Validate locally:**
    ```bash
-   cd applications/<app-slug>
+   cd <product-repo>/infrastructure-modular
    tofu fmt -check -recursive
-   tofu init -backend=false
+   tofu init -backend=false   # fetches modules from this repo via git
    tofu validate
    ```
 
-7. **Run the N-cycle test against the sandbox:**
+7. **Run the N-cycle test against the sandbox**, invoking the harness
+   from a local clone of `kmb-tofu-modules`:
+
    ```bash
-   scripts/n_cycle_test.sh <app-slug> sandbox-co
+   cd <wherever-you-cloned>/kmb-tofu-modules
+   APPLICATION_PATH=<product-repo>/infrastructure-modular \
+   SANDBOX_AWS_ACCOUNT_ID=<id> \
+     ./scripts/n_cycle_test.sh <app-slug> sandbox-co
    ```
+
    Three full apply/destroy/apply/destroy/apply cycles must succeed with
    no manual intervention. If a cycle fails, fix the module(s) — not the
    test.
 
-8. **Open a PR.** The `module-validate.yml` CI runs the format + validate
-   + variable/schema-diff checks. The N-cycle nightly catches any
-   destroy regressions before they reach `main`.
+8. **Open a PR in the product repo.** The product repo's own CI runs
+   `tofu fmt`, `tofu validate`, and the variable/schema-diff check
+   against `infrastructure-modular/`. The N-cycle test runs nightly via
+   a product-repo workflow that checks out kmb-tofu-modules and invokes
+   the harness with `APPLICATION_PATH=./infrastructure-modular`.
 
-9. **After merge,** tag a release: `<app-slug>/v1.0.0`. The Singular
-   Console picks up the new tag via its application catalog refresh.
+9. **After merge,** tag a release in the product repo. The Singular
+   Console picks up the new commit/tag via its application catalog
+   refresh.
 
 10. **Register in Singular Console** (Sprint 5 task B5.1):
     ```http

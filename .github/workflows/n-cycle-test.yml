@@ -1,15 +1,41 @@
 name: n-cycle-test
 
+# Application roots no longer live in this repo (Sprint 4 architecture
+# revision: applications/<slug>/ moved to each product's own private
+# repository). This workflow remains as a manually-invoked harness for
+# any callers who want to run the N-cycle from CI against an
+# application-root directory checked out in a sibling step.
+#
+# The typical caller is a product repo's own CI workflow that:
+#   1. Checks out kmb-tofu-modules.
+#   2. Checks out the product repo (the workflow's own repo).
+#   3. Invokes scripts/n_cycle_test.sh with APPLICATION_PATH set to the
+#      product repo's infrastructure-modular/ directory.
+#
+# This workflow file is kept as a reference template — call it via
+# workflow_dispatch with `application_path` set, or copy it into a
+# product repo.
+
 on:
-  schedule:
-    # Nightly at 02:00 UTC. The sandbox account absorbs the cost; the
-    # signal is "did any module regress its destroy/apply contract."
-    - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
-      app:
-        description: "Application root to test (e.g. traincover, spire)"
+      app_slug:
+        description: "Application slug (e.g. spire, traincover)"
         required: true
+        type: string
+      application_path:
+        description: "Path to the application root, relative to the checked-out repo"
+        required: true
+        default: "infrastructure-modular"
+        type: string
+      product_repo:
+        description: "<owner>/<repo> of the product whose root to test"
+        required: true
+        type: string
+      product_ref:
+        description: "Branch/tag of the product repo to check out"
+        required: false
+        default: "main"
         type: string
 
 permissions:
@@ -18,17 +44,22 @@ permissions:
 
 jobs:
   n-cycle:
-    name: ${{ matrix.app }} N-cycle
+    name: ${{ inputs.app_slug }} N-cycle
     runs-on: ubuntu-latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        app: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.app)) || fromJSON('["spire", "traincover"]') }}
-
     steps:
-      - name: Checkout
+      - name: Checkout kmb-tofu-modules
         uses: actions/checkout@v4
+        with:
+          path: kmb-tofu-modules
+
+      - name: Checkout product repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.product_repo }}
+          ref: ${{ inputs.product_ref }}
+          token: ${{ secrets.PRODUCT_REPO_TOKEN }}
+          path: product
 
       - name: Install OpenTofu
         uses: opentofu/setup-opentofu@v1
@@ -40,12 +71,13 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.SANDBOX_AWS_ACCOUNT_ID }}:role/kmb-tofu-nightly-runner
           aws-region: us-east-1
-          role-session-name: ncycle-${{ matrix.app }}-${{ github.run_id }}
+          role-session-name: ncycle-${{ inputs.app_slug }}-${{ github.run_id }}
 
       - name: Run N-cycle test
         env:
           SANDBOX_AWS_ACCOUNT_ID: ${{ secrets.SANDBOX_AWS_ACCOUNT_ID }}
           AWS_PROFILE: default
+          APPLICATION_PATH: ${{ github.workspace }}/product/${{ inputs.application_path }}
         run: |
-          chmod +x scripts/n_cycle_test.sh
-          ./scripts/n_cycle_test.sh "${{ matrix.app }}" sandbox-co
+          chmod +x kmb-tofu-modules/scripts/n_cycle_test.sh
+          kmb-tofu-modules/scripts/n_cycle_test.sh "${{ inputs.app_slug }}" sandbox-co

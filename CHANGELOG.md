@@ -8,6 +8,17 @@ Each module is versioned independently via repo-wide git tags of the form
 
 ## [Unreleased]
 
+### Changed — Sprint 4 architecture revision (2026-05-18)
+
+**Application roots no longer live in this repository.** The original Sprint 4 design placed `applications/spire/` and `applications/traincover/` inside this repo, which is PUBLIC. Even with the literal-lint guarding against account IDs and IPs, the architectural detail of how each product composes infrastructure (Spire's RAG topology, Traincover's service decomposition, IAM grants) is proprietary. Moving them out keeps the public surface to customer-agnostic building blocks.
+
+Application roots now live in each product's own private repository at `<product-repo>/infrastructure-modular/` and reference modules here via remote git URLs (`source = "git::https://github.com/kmb-digital-solutions/kmb-tofu-modules.git//modules/<name>?ref=<module>/vX.Y.Z"`).
+
+- **`scripts/n_cycle_test.sh` generalized** — accepts an `APPLICATION_PATH` environment variable pointing at any application-root directory (in any repo, anywhere on disk). Falls back to `./applications/<slug>/` if `APPLICATION_PATH` is unset, but that path is no longer populated in this repo.
+- **`.github/workflows/n-cycle-test.yml` rewritten** as a manually-invokable template that checks out both this repo and a product repo (via `workflow_dispatch` inputs), then runs the harness against the product's `infrastructure-modular/` directory. The nightly cron is removed because there's no single canonical scope from here.
+- **`.github/workflows/module-validate.yml` simplified** — dropped the `variables.tf ↔ console.schema.json` diff job since no application roots live here. That check moves to each product repo's CI.
+- **`README.md` and `docs/application-onboarding.md` updated** to reflect that application roots live in product repos. Onboarding sequence rewritten with the remote-source pattern and external-path harness invocation.
+
 ### Added — Sprint 3 bootstrap (2026-05-18)
 
 **You can now compose Singular's infrastructure from reusable OpenTofu modules.** This repository becomes the single source of truth for IaC across every Singular product.

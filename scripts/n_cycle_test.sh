@@ -8,17 +8,35 @@
 # resource the second apply tries to replace (which would indicate
 # non-idempotent module behavior).
 #
+# Application roots live in product repos, NOT here. The harness is
+# generic — point it at any directory containing a `main.tf` that
+# composes modules from this repository.
+#
 # Usage:
 #   scripts/n_cycle_test.sh <app-slug> <sandbox-customer-slug>
 #
 # Environment:
+#   APPLICATION_PATH        — Path to the application root directory. Default:
+#                             ./applications/<app-slug>/  (legacy in-repo
+#                             layout; for external roots set explicitly).
 #   AWS_PROFILE             — must be set to a profile with access to the
 #                             sandbox account (typically via OIDC or
 #                             assume-role from management).
 #   SANDBOX_AWS_ACCOUNT_ID  — 12-digit AWS account id of the sandbox.
 #   SANDBOX_STATE_BUCKET    — S3 bucket in the sandbox account for state.
 #                             Default: <sandbox-slug>-lower-tfstate.
+#   SANDBOX_LOCK_TABLE      — DynamoDB lock table. Default: singular-tfstate-locks.
 #   N_CYCLES                — Number of apply cycles. Default: 3.
+#
+# Examples:
+#   # External application root (product repo):
+#   APPLICATION_PATH=/path/to/Spire/kmb-SOAP-be/infrastructure-modular \
+#   SANDBOX_AWS_ACCOUNT_ID=123456789012 \
+#     ./scripts/n_cycle_test.sh spire sandbox-co
+#
+#   # CI invocation from a product repo workflow:
+#   APPLICATION_PATH=./infrastructure-modular \
+#     <path-to-kmb-tofu-modules>/scripts/n_cycle_test.sh traincover sandbox-co
 #
 # Exit codes:
 #   0 — all cycles passed; no orphan resources detected.
@@ -49,10 +67,23 @@ EOF
 [[ $# -eq 2 ]] || usage
 readonly APP_SLUG="$1"
 readonly SANDBOX_SLUG="$2"
-readonly APP_DIR="${REPO_ROOT}/applications/${APP_SLUG}"
 readonly N_CYCLES="${N_CYCLES:-3}"
 
-[[ -d "${APP_DIR}" ]] || die "application root not found: ${APP_DIR}"
+# Application root path resolution:
+#   1. APPLICATION_PATH env var (preferred) — points anywhere on disk.
+#   2. Fallback to ./applications/<slug>/  inside this repo (legacy).
+if [[ -n "${APPLICATION_PATH:-}" ]]; then
+    if [[ "${APPLICATION_PATH}" = /* ]]; then
+        APP_DIR="${APPLICATION_PATH}"
+    else
+        APP_DIR="$(cd "${APPLICATION_PATH}" && pwd)"
+    fi
+else
+    APP_DIR="${REPO_ROOT}/applications/${APP_SLUG}"
+fi
+readonly APP_DIR
+
+[[ -d "${APP_DIR}" ]] || die "application root not found: ${APP_DIR} (set APPLICATION_PATH or place under applications/<slug>/)"
 [[ -f "${APP_DIR}/main.tf" ]] || die "missing main.tf in ${APP_DIR}"
 [[ -n "${AWS_PROFILE:-}" ]] || die "AWS_PROFILE must be set" 3
 [[ -n "${SANDBOX_AWS_ACCOUNT_ID:-}" ]] || die "SANDBOX_AWS_ACCOUNT_ID must be set" 3

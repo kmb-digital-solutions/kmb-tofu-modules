@@ -1,12 +1,13 @@
 # kmb-tofu-modules
 
-Shared OpenTofu modules and application root modules for the Singular Console
-control plane.
+Shared OpenTofu modules for the Singular Console control plane.
 
-This repository is the **single source of truth for infrastructure-as-code**
-across every Singular product. The Singular Console reads from here at apply
-time; per-customer accounts get the same modules applied with different
-variable values.
+This repository is the **single source of truth for infrastructure
+building blocks** across every Singular product. It is PUBLIC and holds
+only customer-agnostic, parameterized modules — no application-specific
+composition, no customer-specific values, no account IDs. Application
+roots that compose these modules live in each product's own (private)
+repository and reference modules here via remote git URLs.
 
 ## Repository layout
 
@@ -15,7 +16,7 @@ variable values.
 ├── modules/                     Shared building blocks. Each module is
 │   ├── vpc/                       independently versioned via git tags and
 │   ├── ecs-cluster/               consumed by application roots via
-│   ├── ecs-service/                 git::https://...?ref=vX.Y.Z
+│   ├── ecs-service/                 git::https://...?ref=<module>/vX.Y.Z
 │   ├── ecr-repo/
 │   ├── rds-postgres/
 │   ├── kms-key-set/
@@ -25,12 +26,11 @@ variable values.
 │   ├── observability/
 │   └── hipaa-overlay/           Conditional overlay for HIPAA-tier customers.
 │
-├── applications/                Root modules — composed from shared modules
-│   ├── spire/                     above. The Singular Console pins a tag per
-│   └── traincover/                  deployment via console.schema.json.
-│
 ├── scripts/
-│   ├── n_cycle_test.sh          The acceptance harness (see N-cycle below).
+│   ├── n_cycle_test.sh          Generic acceptance harness — accepts
+│   │                              APPLICATION_PATH for any external root.
+│   ├── validate_all.sh          fmt + init + validate across modules/.
+│   ├── lint_no_literals.sh      Refuse sensitive literals in module source.
 │   └── publish_module.sh        Tag-and-push automation for a module version.
 │
 ├── docs/
@@ -40,9 +40,32 @@ variable values.
 │
 └── .github/workflows/
     ├── module-validate.yml      PR gate: `tofu fmt`, `tofu validate`, tflint,
-    │                              pre-commit hook for sensitive literals.
-    └── n-cycle-test.yml         Nightly + on-demand acceptance against sandbox.
+    │                              and the sensitive-literal lint.
+    └── n-cycle-test.yml         Manual workflow — typically invoked from a
+                                  product repo's own CI with APPLICATION_PATH.
 ```
+
+**Application roots do NOT live in this repository.** This repo is
+PUBLIC and the architectural detail of how Spire/Traincover compose
+infrastructure is proprietary. Application roots live in each
+application's own private repository at `<repo>/infrastructure-modular/`
+and reference modules here via remote git URLs:
+
+```hcl
+module "vpc" {
+  source = "git::https://github.com/kmb-digital-solutions/kmb-tofu-modules.git//modules/vpc?ref=vpc/v1.0.0"
+  # ...
+}
+```
+
+Current consuming application roots (as of Sprint 4):
+
+| Application | Root location |
+|-------------|---------------|
+| Spire | `Singular-Systems/Spire/kmb-SOAP-be/infrastructure-modular/` |
+| Traincover | `Singular-Systems/ATS/traincover/infrastructure-modular/` |
+
+See `docs/application-onboarding.md` for the full onboarding contract.
 
 ## OpenTofu, not Terraform
 
