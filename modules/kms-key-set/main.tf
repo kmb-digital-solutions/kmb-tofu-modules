@@ -31,21 +31,28 @@ locals {
 
   deletion_window_days = var.destroy_protection ? 30 : 7
 
-  # Root account principal full access — and nothing else.
-  root_only_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "RootAccountFullAccess"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
-        }
-        Action   = "kms:*"
-        Resource = "*"
-      }
-    ]
-  })
+  # Default statement on every key: root account full access. Callers extend
+  # per-purpose via var.additional_policy_statements_by_purpose.
+  root_statement = {
+    Sid    = "RootAccountFullAccess"
+    Effect = "Allow"
+    Principal = {
+      AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+    }
+    Action   = "kms:*"
+    Resource = "*"
+  }
+
+  # Composed policy per purpose: root + any caller-provided statements.
+  key_policies = {
+    for purpose in var.purposes : purpose => jsonencode({
+      Version = "2012-10-17"
+      Statement = concat(
+        [local.root_statement],
+        lookup(var.additional_policy_statements_by_purpose, purpose, []),
+      )
+    })
+  }
 }
 
 ###############################################################################
@@ -59,7 +66,7 @@ resource "aws_kms_key" "this" {
   deletion_window_in_days = local.deletion_window_days
   enable_key_rotation     = true
   multi_region            = var.enable_multi_region
-  policy                  = local.root_only_policy
+  policy                  = local.key_policies[each.value]
 
   tags = merge(local.tags, {
     Name    = "${var.customer_slug}-${var.environment}-${each.value}"
@@ -88,7 +95,7 @@ resource "aws_kms_replica_key" "this" {
   description             = "${var.customer_slug} ${var.environment} ${each.value} replica CMK"
   primary_key_arn         = aws_kms_key.this[each.value].arn
   deletion_window_in_days = local.deletion_window_days
-  policy                  = local.root_only_policy
+  policy                  = local.key_policies[each.value]
 
   tags = merge(local.tags, {
     Name    = "${var.customer_slug}-${var.environment}-${each.value}-replica"
