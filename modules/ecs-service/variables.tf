@@ -200,6 +200,18 @@ variable "log_kms_key_arn" {
   }
 }
 
+variable "enable_log_kms_policy" {
+  description = <<-EOT
+    Plan-time-known flag indicating whether log_kms_key_arn will be set
+    when applied. Used by count/for_each expressions that cannot depend on
+    the ARN value directly (which may be derived from a sibling module's
+    apply-time output). When true, the caller MUST also set log_kms_key_arn
+    to a real ARN — null with enable_log_kms_policy=true is a misuse.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "enable_execute_command" {
   description = <<-EOT
     Enable ECS Exec on the service for break-glass shell access into

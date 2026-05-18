@@ -88,7 +88,7 @@ resource "aws_iam_role_policy_attachment" "execution_managed" {
 # log-group's KMS key (if any). Built conditionally so an empty
 # secret_arns map does not produce an empty Statement.
 data "aws_iam_policy_document" "execution_secrets" {
-  count = length(var.secret_arns) > 0 || var.log_kms_key_arn != null ? 1 : 0
+  count = length(var.secret_arns) > 0 || var.enable_log_kms_policy ? 1 : 0
 
   dynamic "statement" {
     for_each = length(var.secret_arns) > 0 ? [1] : []
@@ -105,7 +105,7 @@ data "aws_iam_policy_document" "execution_secrets" {
   }
 
   dynamic "statement" {
-    for_each = var.log_kms_key_arn != null ? [1] : []
+    for_each = var.enable_log_kms_policy ? [1] : []
     content {
       sid = "UseLogKmsKey"
       actions = [
@@ -120,7 +120,7 @@ data "aws_iam_policy_document" "execution_secrets" {
 }
 
 resource "aws_iam_role_policy" "execution_inline" {
-  count = length(var.secret_arns) > 0 || var.log_kms_key_arn != null ? 1 : 0
+  count = length(var.secret_arns) > 0 || var.enable_log_kms_policy ? 1 : 0
 
   name   = "${local.name_prefix}-execution-inline"
   role   = aws_iam_role.execution.id
@@ -156,7 +156,7 @@ data "aws_iam_policy_document" "task_exec" {
   }
 
   dynamic "statement" {
-    for_each = var.log_kms_key_arn != null ? [1] : []
+    for_each = var.enable_log_kms_policy ? [1] : []
     content {
       sid = "AllowECSExecLogKmsKey"
       actions = [

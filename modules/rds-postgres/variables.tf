@@ -103,12 +103,19 @@ variable "subnet_ids" {
 }
 
 variable "source_security_group_ids" {
-  description = "Security group IDs allowed to connect to the DB on port 5432. Must contain at least one entry; an isolated DB serves no application traffic."
-  type        = list(string)
+  description = <<-EOT
+    Map of static caller-defined label -> security group ID allowed to
+    connect to the DB on port 5432. Map form (not list) is required so that
+    the for_each over this variable has plan-time-known keys even when the
+    SG IDs themselves are apply-time outputs of sibling resources. Must
+    contain at least one entry; an isolated DB serves no application traffic.
+    Example: { api = aws_security_group.api.id, worker = aws_security_group.worker.id }.
+  EOT
+  type        = map(string)
 
   validation {
     condition     = length(var.source_security_group_ids) > 0
-    error_message = "source_security_group_ids must contain at least one security group ID."
+    error_message = "source_security_group_ids must contain at least one entry."
   }
 }
 
