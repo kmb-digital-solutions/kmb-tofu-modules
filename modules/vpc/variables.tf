@@ -60,15 +60,51 @@ variable "availability_zone_count" {
 }
 
 variable "enable_nat_gateway" {
-  description = "When true, create NAT Gateway(s) for private subnet egress. When false, private subnets have no default route to the internet."
+  description = "Deprecated in favor of nat_strategy. Kept for backwards compatibility. When nat_strategy is unset, enable_nat_gateway=true selects 'gateway' and enable_nat_gateway=false selects 'none'."
   type        = bool
   default     = true
 }
 
 variable "single_nat_gateway" {
-  description = "When true, deploy a single shared NAT Gateway in the first public subnet (non-prod cost mode). When false, deploy one NAT Gateway per AZ for HA."
+  description = "When nat_strategy='gateway', true = single shared NAT Gateway (cost mode), false = one per AZ (HA). Ignored when nat_strategy != 'gateway'."
   type        = bool
   default     = true
+}
+
+variable "nat_strategy" {
+  description = <<-EOT
+    How to provide outbound internet egress from the private subnets:
+
+      "gateway"  (default) - AWS-managed NAT Gateway(s). HA, throughput
+                             scales automatically, ~$32/mo per gateway.
+                             Use single_nat_gateway to pick 1 vs N.
+
+      "instance" - Single fck-nat NAT instance (t4g.nano) in the first
+                   public subnet. ~$3.50/mo. Single AZ, single point of
+                   failure. The right tradeoff for sandbox/demo
+                   deployments — costs ~10% of a NAT Gateway. fck-nat AMI
+                   is community-maintained (https://github.com/AndrewGuenther/fck-nat).
+
+      "none"     - No NAT, no egress from private subnets. Only valid
+                   when the workload exclusively uses VPC endpoints and
+                   needs zero internet egress.
+
+    When unset (null), the legacy enable_nat_gateway flag is honored:
+    true -> "gateway", false -> "none".
+  EOT
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.nat_strategy == null || contains(["gateway", "instance", "none"], var.nat_strategy)
+    error_message = "nat_strategy must be one of: gateway, instance, none (or null to honor legacy enable_nat_gateway)."
+  }
+}
+
+variable "nat_instance_type" {
+  description = "EC2 instance type for the NAT instance when nat_strategy='instance'. Default t4g.nano (~$3/mo). Bump to t4g.micro or t4g.small if the demo workload generates sustained throughput."
+  type        = string
+  default     = "t4g.nano"
 }
 
 variable "destroy_protection" {

@@ -29,7 +29,19 @@ locals {
   public_subnet_cidrs  = [for i in range(var.availability_zone_count) : cidrsubnet(var.cidr_block, 4, i)]
   private_subnet_cidrs = [for i in range(var.availability_zone_count) : cidrsubnet(var.cidr_block, 4, i + 8)]
 
-  nat_gateway_count = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : var.availability_zone_count) : 0
+  # NAT strategy resolution: explicit nat_strategy wins; otherwise fall back
+  # to the legacy enable_nat_gateway flag for backwards compatibility.
+  effective_nat_strategy = (
+    var.nat_strategy != null ? var.nat_strategy :
+    var.enable_nat_gateway ? "gateway" :
+    "none"
+  )
+
+  use_nat_gateway  = local.effective_nat_strategy == "gateway"
+  use_nat_instance = local.effective_nat_strategy == "instance"
+  has_egress       = local.effective_nat_strategy != "none"
+
+  nat_gateway_count = local.use_nat_gateway ? (var.single_nat_gateway ? 1 : var.availability_zone_count) : 0
 
   # Gateway endpoints are free; interface endpoints incur hourly + data costs.
   gateway_endpoint_services   = [for s in var.vpc_endpoints : s if contains(["s3", "dynamodb"], s)]
@@ -178,11 +190,137 @@ resource "aws_route_table" "private" {
 }
 
 resource "aws_route" "private_default" {
-  count = var.enable_nat_gateway ? var.availability_zone_count : 0
+  count = local.has_egress ? var.availability_zone_count : 0
 
   route_table_id         = aws_route_table.private[count.index].id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = var.single_nat_gateway ? aws_nat_gateway.this[0].id : aws_nat_gateway.this[count.index].id
+
+  # Exactly one of these gets set per route, dictated by nat_strategy.
+  nat_gateway_id = local.use_nat_gateway ? (
+    var.single_nat_gateway ? aws_nat_gateway.this[0].id : aws_nat_gateway.this[count.index].id
+  ) : null
+  network_interface_id = local.use_nat_instance ? aws_network_interface.nat_instance[0].id : null
+}
+
+###############################################################################
+# NAT instance (fck-nat) — cheap alternative to NAT Gateway
+#
+# When nat_strategy = "instance", a single t4g.nano in the first public subnet
+# replaces the NAT Gateway. ~$3.50/mo all-in vs ~$32/mo for the Gateway.
+# Single AZ, single point of failure — acceptable for sandbox/demo workloads.
+# The fck-nat AMI ships from a public, community-maintained registry
+# (https://github.com/AndrewGuenther/fck-nat) and auto-applies security
+# updates on boot.
+###############################################################################
+
+data "aws_ami" "fck_nat" {
+  count = local.use_nat_instance ? 1 : 0
+
+  most_recent = true
+  owners      = ["568608671756"] # fck-nat public AMI owner
+
+  filter {
+    name   = "name"
+    values = ["fck-nat-amzn2-*"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["arm64"]
+  }
+}
+
+resource "aws_security_group" "nat_instance" {
+  count = local.use_nat_instance ? 1 : 0
+
+  name        = "${local.name_prefix_base}-nat-instance"
+  description = "fck-nat instance: ingress from VPC CIDR, egress to the internet."
+  vpc_id      = aws_vpc.this.id
+
+  # Ingress: any traffic from the private subnets (the NAT forwards it).
+  ingress {
+    description = "All traffic from within the VPC."
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [var.cidr_block]
+  }
+
+  # Egress: unrestricted; the instance forwards on behalf of workloads.
+  egress {
+    description = "Outbound to the internet."
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix_base}-nat-instance"
+  })
+}
+
+# Dedicated ENI so the private route table's network_interface_id reference
+# stays stable across instance replacements. The instance attaches to this
+# ENI via network_interface block below.
+resource "aws_network_interface" "nat_instance" {
+  count = local.use_nat_instance ? 1 : 0
+
+  subnet_id         = aws_subnet.public[0].id
+  security_groups   = [aws_security_group.nat_instance[0].id]
+  source_dest_check = false # MUST be false for NAT forwarding to work
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix_base}-nat-instance-eni"
+  })
+}
+
+resource "aws_eip" "nat_instance" {
+  count = local.use_nat_instance ? 1 : 0
+
+  domain = "vpc"
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix_base}-nat-instance-eip"
+  })
+
+  depends_on = [aws_internet_gateway.this]
+}
+
+resource "aws_eip_association" "nat_instance" {
+  count = local.use_nat_instance ? 1 : 0
+
+  allocation_id        = aws_eip.nat_instance[0].id
+  network_interface_id = aws_network_interface.nat_instance[0].id
+}
+
+resource "aws_instance" "nat_instance" {
+  count = local.use_nat_instance ? 1 : 0
+
+  ami           = data.aws_ami.fck_nat[0].id
+  instance_type = var.nat_instance_type
+
+  # Attach the pre-created ENI as the primary interface so route-table
+  # references survive instance replacement (replacement is rare, but the
+  # whole point of using an ENI is decoupling the route from the instance).
+  network_interface {
+    network_interface_id = aws_network_interface.nat_instance[0].id
+    device_index         = 0
+  }
+
+  # IMDSv2 required (best practice; protects against SSRF-style attacks
+  # that abuse the metadata endpoint to read instance credentials).
+  metadata_options {
+    http_tokens   = "required"
+    http_endpoint = "enabled"
+  }
+
+  # Source/dest check is configured on the ENI above; no instance-level
+  # override needed.
+
+  tags = merge(local.tags, {
+    Name = "${local.name_prefix_base}-nat-instance"
+  })
 }
 
 resource "aws_route_table_association" "private" {
