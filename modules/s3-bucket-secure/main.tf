@@ -17,16 +17,22 @@
 ###############################################################################
 
 locals {
-  generated_bucket_name = "${var.customer_slug}-${var.environment}-${var.purpose}"
+  # `<customer>-<env>[-<app>]-<purpose>`. App-aware namespacing kicks in
+  # when the caller passes a non-empty application_name.
+  name_prefix_base      = var.application_name == "" ? "${var.customer_slug}-${var.environment}" : "${var.customer_slug}-${var.environment}-${var.application_name}"
+  generated_bucket_name = "${local.name_prefix_base}-${var.purpose}"
   bucket_name           = coalesce(var.bucket_name_override, local.generated_bucket_name)
 
-  tags = {
-    customer_slug = var.customer_slug
-    environment   = var.environment
-    module        = "s3-bucket-secure"
-    managed_by    = "tofu"
-    purpose       = var.purpose
-  }
+  tags = merge(
+    {
+      customer_slug = var.customer_slug
+      environment   = var.environment
+      module        = "s3-bucket-secure"
+      managed_by    = "tofu"
+      purpose       = var.purpose
+    },
+    var.application_name == "" ? {} : { application = var.application_name },
+  )
 }
 
 ###############################################################################

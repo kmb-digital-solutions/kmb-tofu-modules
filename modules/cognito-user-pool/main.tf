@@ -7,18 +7,25 @@
 # block destroy when deletion_protection is INACTIVE.
 
 locals {
-  pool_name = coalesce(var.pool_name_override, "${var.customer_slug}-${var.environment}")
+  # `<customer>-<env>[-<app>]`. App-aware namespacing kicks in when the
+  # caller passes a non-empty application_name. pool_name_override always wins.
+  name_prefix_base = var.application_name == "" ? "${var.customer_slug}-${var.environment}" : "${var.customer_slug}-${var.environment}-${var.application_name}"
+
+  pool_name = coalesce(var.pool_name_override, local.name_prefix_base)
 
   app_clients_by_name = {
     for c in var.app_clients : c.name => c
   }
 
-  common_tags = {
-    customer_slug = var.customer_slug
-    environment   = var.environment
-    module        = "cognito-user-pool"
-    managed_by    = "tofu"
-  }
+  common_tags = merge(
+    {
+      customer_slug = var.customer_slug
+      environment   = var.environment
+      module        = "cognito-user-pool"
+      managed_by    = "tofu"
+    },
+    var.application_name == "" ? {} : { application = var.application_name },
+  )
 
   # Account recovery: verified email only. Phone is intentionally excluded
   # to defeat SIM-swap takeover paths. If a customer needs phone recovery
@@ -131,6 +138,6 @@ resource "aws_cognito_user_pool_client" "this" {
 resource "aws_cognito_user_pool_domain" "this" {
   count = var.enable_advanced_security ? 1 : 0
 
-  domain       = "${var.customer_slug}-${var.environment}"
+  domain       = local.name_prefix_base
   user_pool_id = aws_cognito_user_pool.this.id
 }

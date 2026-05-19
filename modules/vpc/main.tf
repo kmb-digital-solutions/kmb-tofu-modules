@@ -35,12 +35,19 @@ locals {
   gateway_endpoint_services   = [for s in var.vpc_endpoints : s if contains(["s3", "dynamodb"], s)]
   interface_endpoint_services = [for s in var.vpc_endpoints : s if !contains(["s3", "dynamodb"], s)]
 
-  tags = {
-    customer_slug = var.customer_slug
-    environment   = var.environment
-    module        = "vpc"
-    managed_by    = "tofu"
-  }
+  # `<customer>-<env>[-<app>]`. App-aware namespacing kicks in when the
+  # caller passes a non-empty application_name.
+  name_prefix_base = var.application_name == "" ? "${var.customer_slug}-${var.environment}" : "${var.customer_slug}-${var.environment}-${var.application_name}"
+
+  tags = merge(
+    {
+      customer_slug = var.customer_slug
+      environment   = var.environment
+      module        = "vpc"
+      managed_by    = "tofu"
+    },
+    var.application_name == "" ? {} : { application = var.application_name },
+  )
 }
 
 ###############################################################################
@@ -53,7 +60,7 @@ resource "aws_vpc" "this" {
   enable_dns_hostnames = true
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-vpc"
+    Name = "${local.name_prefix_base}-vpc"
   })
 }
 
@@ -63,7 +70,7 @@ resource "aws_default_security_group" "this" {
   vpc_id = aws_vpc.this.id
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-default-deny"
+    Name = "${local.name_prefix_base}-default-deny"
   })
 }
 
@@ -75,7 +82,7 @@ resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-igw"
+    Name = "${local.name_prefix_base}-igw"
   })
 }
 
@@ -88,7 +95,7 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = false
 
   tags = merge(local.tags, {
-    Name                     = "${var.customer_slug}-${var.environment}-public-${local.selected_azs[count.index]}"
+    Name                     = "${local.name_prefix_base}-public-${local.selected_azs[count.index]}"
     "kubernetes.io/role/elb" = "1"
     tier                     = "public"
   })
@@ -98,7 +105,7 @@ resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-public-rt"
+    Name = "${local.name_prefix_base}-public-rt"
   })
 }
 
@@ -127,7 +134,7 @@ resource "aws_subnet" "private" {
   availability_zone = local.selected_azs[count.index]
 
   tags = merge(local.tags, {
-    Name                              = "${var.customer_slug}-${var.environment}-private-${local.selected_azs[count.index]}"
+    Name                              = "${local.name_prefix_base}-private-${local.selected_azs[count.index]}"
     "kubernetes.io/role/internal-elb" = "1"
     tier                              = "private"
   })
@@ -139,7 +146,7 @@ resource "aws_eip" "nat" {
   domain = "vpc"
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-nat-eip-${count.index}"
+    Name = "${local.name_prefix_base}-nat-eip-${count.index}"
   })
 
   depends_on = [aws_internet_gateway.this]
@@ -152,7 +159,7 @@ resource "aws_nat_gateway" "this" {
   subnet_id     = aws_subnet.public[count.index].id
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-nat-${count.index}"
+    Name = "${local.name_prefix_base}-nat-${count.index}"
   })
 
   depends_on = [aws_internet_gateway.this]
@@ -166,7 +173,7 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.this.id
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-private-rt-${local.selected_azs[count.index]}"
+    Name = "${local.name_prefix_base}-private-rt-${local.selected_azs[count.index]}"
   })
 }
 
@@ -198,7 +205,7 @@ data "aws_region" "current" {}
 resource "aws_security_group" "interface_endpoints" {
   count = length(local.interface_endpoint_services) > 0 ? 1 : 0
 
-  name        = "${var.customer_slug}-${var.environment}-vpce-interface"
+  name        = "${local.name_prefix_base}-vpce-interface"
   description = "Allow HTTPS from within the VPC to interface VPC endpoints."
   vpc_id      = aws_vpc.this.id
 
@@ -219,7 +226,7 @@ resource "aws_security_group" "interface_endpoints" {
   }
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-vpce-interface"
+    Name = "${local.name_prefix_base}-vpce-interface"
   })
 }
 
@@ -232,7 +239,7 @@ resource "aws_vpc_endpoint" "gateway" {
   route_table_ids   = aws_route_table.private[*].id
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-vpce-${each.value}"
+    Name = "${local.name_prefix_base}-vpce-${each.value}"
   })
 }
 
@@ -247,6 +254,6 @@ resource "aws_vpc_endpoint" "interface" {
   private_dns_enabled = true
 
   tags = merge(local.tags, {
-    Name = "${var.customer_slug}-${var.environment}-vpce-${each.value}"
+    Name = "${local.name_prefix_base}-vpce-${each.value}"
   })
 }

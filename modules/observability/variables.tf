@@ -18,6 +18,25 @@ variable "environment" {
   }
 }
 
+variable "application_name" {
+  description = <<-EOT
+    Optional logical application slug. When non-empty, the default SNS
+    topic name is `<customer_slug>-<environment>-<application_name>-<service_name>-alarms`
+    so multiple applications don't collide on a single topic per
+    customer+environment+service combination.
+
+    Default empty preserves the legacy
+    `<customer_slug>-<environment>-<service_name>-alarms` name.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.application_name == "" || can(regex("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", var.application_name))
+    error_message = "application_name must be empty or 3-32 chars lowercase alphanumeric/hyphens, not starting or ending with a hyphen."
+  }
+}
+
 variable "service_name" {
   description = "Service name used in log group paths and the default SNS topic name. Lowercase alphanumeric and hyphens."
   type        = string

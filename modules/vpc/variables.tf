@@ -18,6 +18,25 @@ variable "environment" {
   }
 }
 
+variable "application_name" {
+  description = <<-EOT
+    Optional logical application slug. When non-empty, VPC, subnet, route
+    table, IGW, NAT, and VPC-endpoint Name tags use the prefix
+    `<customer_slug>-<environment>-<application_name>-...` so multiple
+    applications in the same customer+environment don't share Name tags.
+
+    Default empty preserves the legacy
+    `<customer_slug>-<environment>-...` Name tags.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.application_name == "" || can(regex("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", var.application_name))
+    error_message = "application_name must be empty or 3-32 chars lowercase alphanumeric/hyphens, not starting or ending with a hyphen."
+  }
+}
+
 variable "cidr_block" {
   description = "IPv4 CIDR block for the VPC. Must be a /16 through /24."
   type        = string

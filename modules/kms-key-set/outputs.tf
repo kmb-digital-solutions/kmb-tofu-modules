@@ -9,7 +9,7 @@ output "key_ids" {
 }
 
 output "aliases" {
-  description = "Map of purpose to alias name (alias/<customer_slug>-<environment>-<purpose>)."
+  description = "Map of purpose to alias name (alias/<customer_slug>-<environment>[-<application_name>]-<purpose>)."
   value       = { for p, a in aws_kms_alias.this : p => a.name }
 }
 

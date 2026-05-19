@@ -1,5 +1,7 @@
 locals {
-  name_prefix = "${var.customer_slug}-${var.environment}"
+  # `<customer>-<env>[-<app>]`. App-aware namespacing kicks in when the
+  # caller passes a non-empty application_name.
+  name_prefix = var.application_name == "" ? "${var.customer_slug}-${var.environment}" : "${var.customer_slug}-${var.environment}-${var.application_name}"
   identifier  = "${local.name_prefix}-postgres"
 
   # Postgres major version drives the parameter-group family.
@@ -7,12 +9,15 @@ locals {
   engine_major_version   = split(".", var.engine_version)[0]
   parameter_group_family = "postgres${local.engine_major_version}"
 
-  base_tags = {
-    customer_slug = var.customer_slug
-    environment   = var.environment
-    module        = "rds-postgres"
-    managed_by    = "tofu"
-  }
+  base_tags = merge(
+    {
+      customer_slug = var.customer_slug
+      environment   = var.environment
+      module        = "rds-postgres"
+      managed_by    = "tofu"
+    },
+    var.application_name == "" ? {} : { application = var.application_name },
+  )
 
   # Baseline parameters: SSL enforced, connection logging, slow-query log.
   # Merged with caller overrides; caller wins on conflict.

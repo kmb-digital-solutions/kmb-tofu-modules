@@ -18,6 +18,26 @@ variable "environment" {
   }
 }
 
+variable "application_name" {
+  description = <<-EOT
+    Optional logical application slug (e.g., "spire", "traincover"). When
+    non-empty, KMS key descriptions, tags, and alias names are namespaced
+    as `<customer_slug>-<environment>-<application_name>-<purpose>` so
+    multiple applications in the same customer+environment do not collide
+    on alias names like `alias/test-co-dev-logs`.
+
+    Default empty preserves the legacy `<customer_slug>-<environment>-<purpose>`
+    naming for callers that deploy one application per customer+environment.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.application_name == "" || can(regex("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", var.application_name))
+    error_message = "application_name must be empty or 3-32 chars lowercase alphanumeric/hyphens, not starting or ending with a hyphen."
+  }
+}
+
 variable "purposes" {
   description = <<-EOT
     Logical purposes for which to create CMK + alias pairs. Each becomes a

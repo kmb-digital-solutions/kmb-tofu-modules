@@ -28,6 +28,32 @@ variable "service_name" {
   }
 }
 
+variable "application_name" {
+  description = <<-EOT
+    Optional logical application slug (e.g., "spire", "traincover"). When
+    non-empty, resource names are namespaced as
+    `<customer_slug>-<environment>-<application_name>-<service_name>` and
+    the log group becomes `/ecs/<customer_slug>-<environment>-<application_name>/<service_name>`.
+    Lets multiple applications coexist on the same ECS cluster without
+    colliding on IAM role names or log group paths.
+
+    Default empty produces `<customer_slug>-<environment>-<service_name>`
+    for resource names and `/ecs/<customer_slug>-<environment>/<service_name>`
+    for the log group. (Prior versions of this module used path-style
+    `/ecs/<customer_slug>/<environment>/<service_name>` for the log group;
+    callers that destroyed and re-create services through this version
+    will see the new hyphen-style path. Anyone still on legacy state
+    should `tofu state rm` and re-import or accept the recreate.)
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.application_name == "" || can(regex("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", var.application_name))
+    error_message = "application_name must be empty or 3-32 chars lowercase alphanumeric/hyphens, not starting or ending with a hyphen."
+  }
+}
+
 variable "cluster_arn" {
   description = "ECS cluster ARN to attach the service to. Sourced from modules/ecs-cluster.cluster_arn."
   type        = string

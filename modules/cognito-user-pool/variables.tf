@@ -18,6 +18,26 @@ variable "environment" {
   }
 }
 
+variable "application_name" {
+  description = <<-EOT
+    Optional logical application slug. When non-empty, the user pool name
+    and the hosted-UI domain become
+    `<customer_slug>-<environment>-<application_name>` so multiple
+    applications in the same customer+environment don't collide on a
+    single pool. `pool_name_override` still wins.
+
+    Default empty preserves the legacy `<customer_slug>-<environment>`
+    naming.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.application_name == "" || can(regex("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", var.application_name))
+    error_message = "application_name must be empty or 3-32 chars lowercase alphanumeric/hyphens, not starting or ending with a hyphen."
+  }
+}
+
 variable "pool_name_override" {
   description = "Override the default pool name. When null, the name defaults to <customer_slug>-<environment>."
   type        = string

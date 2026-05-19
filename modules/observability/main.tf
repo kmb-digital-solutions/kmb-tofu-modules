@@ -14,17 +14,24 @@ locals {
     for a in var.alarms : a.name => a
   }
 
-  sns_topic_name = "${var.customer_slug}-${var.environment}-${var.service_name}-alarms"
+  # `<customer>-<env>[-<app>]`. App-aware namespacing kicks in when the
+  # caller passes a non-empty application_name.
+  name_prefix_base = var.application_name == "" ? "${var.customer_slug}-${var.environment}" : "${var.customer_slug}-${var.environment}-${var.application_name}"
+
+  sns_topic_name = "${local.name_prefix_base}-${var.service_name}-alarms"
 
   module_topic_arn = var.enable_sns_topic ? aws_sns_topic.alarms[0].arn : null
 
-  common_tags = {
-    customer_slug = var.customer_slug
-    environment   = var.environment
-    service       = var.service_name
-    module        = "observability"
-    managed_by    = "tofu"
-  }
+  common_tags = merge(
+    {
+      customer_slug = var.customer_slug
+      environment   = var.environment
+      service       = var.service_name
+      module        = "observability"
+      managed_by    = "tofu"
+    },
+    var.application_name == "" ? {} : { application = var.application_name },
+  )
 }
 
 resource "aws_cloudwatch_log_group" "this" {

@@ -18,6 +18,26 @@ variable "environment" {
   }
 }
 
+variable "application_name" {
+  description = <<-EOT
+    Optional logical application slug (e.g., "spire", "traincover"). When
+    non-empty, the DB identifier and all derived resource names are
+    namespaced as `<customer_slug>-<environment>-<application_name>-postgres`
+    so multiple applications in the same customer+environment do not
+    collide on a single `<customer_slug>-<environment>-postgres` identifier.
+
+    Default empty preserves the legacy `<customer_slug>-<environment>-postgres`
+    identifier for one-application-per-account deployments.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.application_name == "" || can(regex("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$", var.application_name))
+    error_message = "application_name must be empty or 3-32 chars lowercase alphanumeric/hyphens, not starting or ending with a hyphen."
+  }
+}
+
 variable "engine_version" {
   description = "PostgreSQL engine version. The parameter group family is derived from the major version (e.g. '16.4' -> 'postgres16')."
   type        = string

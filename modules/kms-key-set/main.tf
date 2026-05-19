@@ -22,12 +22,20 @@ data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
 locals {
-  tags = {
-    customer_slug = var.customer_slug
-    environment   = var.environment
-    module        = "kms-key-set"
-    managed_by    = "tofu"
-  }
+  # `<customer>-<env>[-<app>]`. App-aware namespacing kicks in when the
+  # caller passes a non-empty application_name. Each purpose becomes its
+  # own suffix on the alias name.
+  name_prefix_base = var.application_name == "" ? "${var.customer_slug}-${var.environment}" : "${var.customer_slug}-${var.environment}-${var.application_name}"
+
+  tags = merge(
+    {
+      customer_slug = var.customer_slug
+      environment   = var.environment
+      module        = "kms-key-set"
+      managed_by    = "tofu"
+    },
+    var.application_name == "" ? {} : { application = var.application_name },
+  )
 
   deletion_window_days = var.destroy_protection ? 30 : 7
 
@@ -62,14 +70,14 @@ locals {
 resource "aws_kms_key" "this" {
   for_each = toset(var.purposes)
 
-  description             = "${var.customer_slug} ${var.environment} ${each.value} CMK"
+  description             = "${local.name_prefix_base} ${each.value} CMK"
   deletion_window_in_days = local.deletion_window_days
   enable_key_rotation     = true
   multi_region            = var.enable_multi_region
   policy                  = local.key_policies[each.value]
 
   tags = merge(local.tags, {
-    Name    = "${var.customer_slug}-${var.environment}-${each.value}"
+    Name    = "${local.name_prefix_base}-${each.value}"
     purpose = each.value
   })
 }
@@ -79,7 +87,7 @@ resource "aws_kms_key" "this" {
 resource "aws_kms_alias" "this" {
   for_each = toset(var.purposes)
 
-  name          = "alias/${var.customer_slug}-${var.environment}-${each.value}"
+  name          = "alias/${local.name_prefix_base}-${each.value}"
   target_key_id = aws_kms_key.this[each.value].key_id
 }
 
@@ -92,13 +100,13 @@ resource "aws_kms_replica_key" "this" {
 
   provider = aws.replica
 
-  description             = "${var.customer_slug} ${var.environment} ${each.value} replica CMK"
+  description             = "${local.name_prefix_base} ${each.value} replica CMK"
   primary_key_arn         = aws_kms_key.this[each.value].arn
   deletion_window_in_days = local.deletion_window_days
   policy                  = local.key_policies[each.value]
 
   tags = merge(local.tags, {
-    Name    = "${var.customer_slug}-${var.environment}-${each.value}-replica"
+    Name    = "${local.name_prefix_base}-${each.value}-replica"
     purpose = each.value
     role    = "replica"
   })
@@ -109,6 +117,6 @@ resource "aws_kms_alias" "replica" {
 
   provider = aws.replica
 
-  name          = "alias/${var.customer_slug}-${var.environment}-${each.value}"
+  name          = "alias/${local.name_prefix_base}-${each.value}"
   target_key_id = aws_kms_replica_key.this[each.value].key_id
 }

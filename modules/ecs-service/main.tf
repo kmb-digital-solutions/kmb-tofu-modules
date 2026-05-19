@@ -1,18 +1,29 @@
 data "aws_region" "current" {}
 
 locals {
-  name_prefix  = "${var.customer_slug}-${var.environment}-${var.service_name}"
+  # `<customer>-<env>[-<app>]` — app-namespacing kicks in when the caller
+  # passes a non-empty application_name. The service name is always the
+  # final segment so resources stay unambiguous within a deployment.
+  name_prefix_base = var.application_name == "" ? "${var.customer_slug}-${var.environment}" : "${var.customer_slug}-${var.environment}-${var.application_name}"
+
+  name_prefix  = "${local.name_prefix_base}-${var.service_name}"
   cluster_name = element(split("/", var.cluster_arn), length(split("/", var.cluster_arn)) - 1)
 
-  base_tags = {
-    customer_slug = var.customer_slug
-    environment   = var.environment
-    module        = "ecs-service"
-    managed_by    = "tofu"
-    service       = var.service_name
-  }
+  base_tags = merge(
+    {
+      customer_slug = var.customer_slug
+      environment   = var.environment
+      module        = "ecs-service"
+      managed_by    = "tofu"
+      service       = var.service_name
+    },
+    var.application_name == "" ? {} : { application = var.application_name },
+  )
 
-  log_group_name = "/ecs/${var.customer_slug}/${var.environment}/${var.service_name}"
+  # CloudWatch Logs path. Single hyphenated segment for the deployment prefix
+  # keeps the path consistent with name_prefix; the service name is its own
+  # path segment so per-service Logs Insights queries remain ergonomic.
+  log_group_name = "/ecs/${local.name_prefix_base}/${var.service_name}"
 
   container_environment = [
     for k, v in var.environment_variables : {
