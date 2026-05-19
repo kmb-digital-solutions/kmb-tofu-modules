@@ -219,14 +219,22 @@ data "aws_ami" "fck_nat" {
   most_recent = true
   owners      = ["568608671756"] # fck-nat public AMI owner
 
+  # fck-nat retired the amzn2 line in early 2026 and now publishes
+  # only al2023 + nat64 images. The al2023 stream is the current GA;
+  # only arm64 (Graviton) builds are published (cheaper + ENA-capable).
   filter {
     name   = "name"
-    values = ["fck-nat-amzn2-*"]
+    values = ["fck-nat-al2023-hvm-*-arm64-ebs"]
   }
 
   filter {
     name   = "architecture"
     values = ["arm64"]
+  }
+
+  filter {
+    name   = "state"
+    values = ["available"]
   }
 }
 
