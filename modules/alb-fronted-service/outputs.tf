@@ -3,6 +3,11 @@ output "alb_arn" {
   value       = aws_lb.this.arn
 }
 
+output "alb_arn_suffix" {
+  description = "The 'arn_suffix' portion of the ALB ARN — the dimension value CloudWatch uses for AWS/ApplicationELB metrics."
+  value       = aws_lb.this.arn_suffix
+}
+
 output "alb_dns_name" {
   description = "DNS name of the ALB (use for CNAME records or external integrations)."
   value       = aws_lb.this.dns_name
@@ -21,6 +26,11 @@ output "alb_security_group_id" {
 output "target_group_arn" {
   description = "Target group the workload's ECS service / target should register with. Pass to ecs-service's `target_group_arn` input."
   value       = aws_lb_target_group.this.arn
+}
+
+output "target_group_arn_suffix" {
+  description = "The 'arn_suffix' portion of the target group ARN — the dimension value CloudWatch uses for AWS/ApplicationELB target-group metrics."
+  value       = aws_lb_target_group.this.arn_suffix
 }
 
 output "https_listener_arn" {
